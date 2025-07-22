@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swedish & Danish Vocabulary Trainer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Prevent scrollbars if content is slightly larger than viewport */
+        }
+        .rounded-xl {
+            border-radius: 1rem; /* 16px */
+        }
+        .shadow-lg {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .shadow-inner {
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+        }
+        /* Add a simple pulse animation for feedback */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        .animate-pulse {
+            animation: pulse 1s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React and ReactDOM CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX transformation in browser (for development/single-file use) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        // Main App component
+        const App = () => {
+            // State to hold the vocabulary data
+            const [vocabulary, setVocabulary] = React.useState([]);
+            // State for the current question index
+            const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
+            // State for the user's selected answer (for multiple choice)
+            const [selectedAnswer, setSelectedAnswer] = React.useState('');
+            // State for feedback (correct/incorrect)
+            const [feedback, setFeedback] = React.useState('');
+            // State for the score
+            const [score, setScore] = React.useState(0);
+            // State to track if the game has started
+            const [gameStarted, setGameStarted] = React.useState(false);
+            // State to track if the game has ended
+            const [gameEnded, setGameEnded] = React.useState(false);
+            // State to determine if Swedish or Danish is being tested
+            const [languageMode, setLanguageMode] = React.useState('swedish'); // 'swedish' or 'danish'
+            // State to hold the multiple choice options for the current question
+            const [options, setOptions] = React.useState([]);
+            // State to track the status of the answer after checking ('correct', 'incorrect', or null)
+            const [answerStatus, setAnswerStatus] = React.useState(null);
+            // State to manage if the app is currently in a "checking" phase (during the pause)
+            const [isChecking, setIsChecking] = React.useState(false);
+
+            // Ref for the timeout to clear feedback and move to next question
+            const feedbackTimeoutRef = React.useRef(null);
+
+            // Hardcoded vocabulary for library and archive terms
+            const initialVocabulary = [
+                { english: 'Book', swedish: 'Bok', danish: 'Bog' },
+                { english: 'Library', swedish: 'Bibliotek', danish: 'Bibliotek' },
+                { english: 'Archive', swedish: 'Arkiv', danish: 'Arkiv' },
+                { english: 'Shelf', swedish: 'Hylla', danish: 'Hylde' },
+                { english: 'Document', swedish: 'Dokument', danish: 'Dokument' },
+                { english: 'Librarian', swedish: 'Bibliotekarie', danish: 'Bibliotekar' },
+                { english: 'Manuscript', swedish: 'Manuskript', danish: 'Manuskript' },
+                { english: 'Catalogue', swedish: 'Katalog', danish: 'Katalog' },
+                { english: 'Collection', swedish: 'Samling', danish: 'Samling' },
+                { english: 'Reader', swedish: 'Läsare', danish: 'Læser' },
+                { english: 'Digitalisation', swedish: 'Digitalisering', danish: 'Digitalisering' },
+                { english: 'Preservation', swedish: 'Bevarande', danish: 'Bevarelse' },
+                { english: 'Research', swedish: 'Forskning', danish: 'Forskning' },
+                { english: 'Database', swedish: 'Databas', danish: 'Database' },
+                { english: 'Exhibition', swedish: 'Utställning', danish: 'Udstilling' },
+                { english: 'Rare book', swedish: 'Sällsynt bok', danish: 'Sjælden bog' },
+                { english: 'Microfilm', swedish: 'Mikrofilm', danish: 'Mikrofilm' },
+                { english: 'Acquisition', swedish: 'Förvärv', danish: 'Erhvervelse' },
+                { english: 'Loan', swedish: 'Lån', danish: 'Lån' },
+                { english: 'Reference work', swedish: 'Referensverk', danish: 'Opslagsværk' },
+                { english: 'Periodical', swedish: 'Tidskrift', danish: 'Tidsskrift' },
+                { english: 'Map', swedish: 'Karta', danish: 'Kort' },
+                { english: 'Newspaper', swedish: 'Tidning', danish: 'Avis' },
+                { english: 'Binding', swedish: 'Inbindning', danish: 'Indbinding' },
+                { english: 'Call number', swedish: 'Hyllsignum', danish: 'Hyldesignatur' },
+                { english: 'Circulation desk', swedish: 'Utlåningsdisk', danish: 'Udlånsdisk' },
+                { english: 'Digital archive', swedish: 'Digitalt arkiv', danish: 'Digitalt arkiv' },
+                { english: 'Finding aid', swedish: 'Arkivförteckning', danish: 'Arkivfortegnelse' },
+                { english: 'Genealogy', swedish: 'Släktforskning', danish: 'Slægtsforskning' },
+                { english: 'Illumination', swedish: 'Illumination', danish: 'Illumination' },
+                { english: 'Index', swedish: 'Register', danish: 'Indeks' },
+                { english: 'Interlibrary loan', swedish: 'Fjärrlån', danish: 'Fjernlån' },
+                { english: 'Journal', swedish: 'Tidskrift', danish: 'Tidsskrift' },
+                { english: 'Legal deposit', swedish: 'Pliktexemplar', danish: 'Pligtaflevering' },
+                { english: 'Microfiche', swedish: 'Mikrofiche', danish: 'Mikrofiche' },
+                { english: 'Monograph', swedish: 'Monografi', danish: 'Monografi' },
+                { english: 'Oral history', swedish: 'Muntlig historia', danish: 'Mundtlig historie' },
+                { english: 'Paleography', swedish: 'Paleografi', danish: 'Palæografi' },
+                { english: 'Pamphlet', swedish: 'Pamflett', danish: 'Pjece' },
+                { english: 'Patent', swedish: 'Patent', danish: 'Patent' },
+                { english: 'Primary source', swedish: 'Primärkälla', danish: 'Primærkilde' },
+                { english: 'Public domain', swedish: 'Allmän egendom', danish: 'Offentligt domæne' },
+                { english: 'Rare collection', swedish: 'Sällsynt samling', danish: 'Sjælden samling' },
+                { english: 'Record', swedish: 'Akt', danish: 'Akt' },
+                { english: 'Repository', swedish: 'Depå', danish: 'Depot' },
+                { english: 'Restoration', swedish: 'Restaurering', danish: 'Restaurering' },
+                { english: 'Serial', swedish: 'Serie', danish: 'Serie' },
+                { english: 'Special collection', swedish: 'Specialsamling', danish: 'Specialsamling' },
+                { english: 'Subject heading', swedish: 'Ämnesord', danish: 'Emneord' },
+                { english: 'Thesaurus', swedish: 'Tesaurus', danish: 'Tesaurus' },
+                { english: 'Volume', swedish: 'Volym', danish: 'Bind' },
+                { english: 'Abstract', swedish: 'Sammanfattning', danish: 'Abstrakt' },
+                { english: 'Bibliography', swedish: 'Bibliografi', danish: 'Bibliografi' },
+                { english: 'Citation', swedish: 'Citat', danish: 'Citat' },
+                { english: 'Copyright', swedish: 'Upphovsrätt', danish: 'Ophavsret' },
+                { english: 'Curator', swedish: 'Intendent', danish: 'Kurator' },
+                { english: 'Digitization', swedish: 'Digitalisering', danish: 'Digitalisering' },
+                { english: 'Dissertation', swedish: 'Avhandling', danish: 'Afhandling' },
+                { english: 'Edition', swedish: 'Upplaga', danish: 'Udgave' },
+                { english: 'Facsimile', swedish: 'Faksimil', danish: 'Faksimile' },
+                { english: 'Folio', swedish: 'Folio', danish: 'Folio' },
+                { english: 'Gazetteer', swedish: 'Ortsnamnsregister', danish: 'Stednavnsregister' },
+                { english: 'Glossary', swedish: 'Ordlista', danish: 'Ordliste' },
+                { english: 'Heraldry', swedish: 'Heraldik', danish: 'Heraldik' },
+                { english: 'Incunabula', swedish: 'Inkuna', danish: 'Inkunabel' },
+                { english: 'Lamination', swedish: 'Laminering', danish: 'Laminering' },
+                { english: 'Lexicon', swedish: 'Lexikon', danish: 'Leksikon' },
+                { english: 'Microform', swedish: 'Mikrofilm', danish: 'Mikrofilm' },
+                { english: 'Notation', swedish: 'Notation', danish: 'Notation' },
+                { english: 'Obsolete', swedish: 'Föråldrad', danish: 'Forældet' },
+                { english: 'Offprint', swedish: 'Särtryck', danish: 'Særtryk' },
+                { english: 'Pagination', swedish: 'Sidnumrering', danish: 'Sidetal' },
+                { english: 'Periodical literature', swedish: 'Periodisk litteratur', danish: 'Periodisk litteratur' },
+                { english: 'Provenance', swedish: 'Proveniens', danish: 'Proveniens' },
+                { english: 'Quarto', swedish: 'Kvarto', danish: 'Kvarto' },
+                { english: 'Recto', swedish: 'Recto', danish: 'Recto' },
+                { english: 'Reproduction', swedish: 'Reproduktion', danish: 'Reproduktion' },
+                { english: 'Rubrication', swedish: 'Rubricering', danish: 'Rubricering' },
+                { english: 'Scroll', swedish: 'Rulle', danish: 'Rulle' },
+                { english: 'Shelfmark', swedish: 'Hyllsignum', danish: 'Hyldesignatur' },
+                { english: 'Scribe', swedish: 'Skrivare', danish: 'Skriver' },
+                { english: 'Transcription', swedish: 'Transkription', danish: 'Transkription' },
+                { english: 'Unbound', swedish: 'Obunden', danish: 'Ubunden' },
+                { english: 'Verso', swedish: 'Verso', danish: 'Verso' },
+                { english: 'Watermark', swedish: 'Vattenmärke', danish: 'Vandmærke' },
+                { english: 'Xylography', swedish: 'Xylografi', danish: 'Xylografi' },
+                { english: 'Yearbook', swedish: 'Årsbok', danish: 'Årbog' },
+                { english: 'Zine', swedish: 'Zine', danish: 'Zine' },
+                { english: 'Abstracting', swedish: 'Sammanfattning', danish: 'Abstrahering' },
+                { english: 'Accession', swedish: 'Förvärv', danish: 'Tilgang' },
+                { english: 'Annotation', swedish: 'Anmärkning', danish: 'Anmærkning' },
+                { english: 'Appraisal', swedish: 'Värdering', danish: 'Vurdering' },
+                { english: 'Archivist', swedish: 'Arkivarie', danish: 'Arkivar' },
+                { english: 'Audiovisual', swedish: 'Audiovisuell', danish: 'Audiovisuel' },
+                { english: 'Binding material', swedish: 'Inbindningsmaterial', danish: 'Indbindingsmateriale' },
+                { english: 'Bookplate', swedish: 'Exlibris', danish: 'Exlibris' },
+                { english: 'Cartography', swedish: 'Kartografi', danish: 'Kartografi' },
+                { english: 'Codex', swedish: 'Codex', danish: 'Kodex' },
+                { english: 'Conservation', swedish: 'Konservering', danish: 'Konservering' },
+                { english: 'Descriptive cataloguing', swedish: 'Deskriptiv katalogisering', danish: 'Deskriptiv katalogisering' },
+                { english: 'Digital preservation', swedish: 'Digital bevarande', danish: 'Digital bevaring' },
+                { english: 'Disaster recovery', swedish: 'Katastrofåterställning', danish: 'Katastrofegendannelse' },
+                { english: 'Ephemera', swedish: 'Efemerer', danish: 'Efemerer' },
+                { english: 'Ex Libris', swedish: 'Ex Libris', danish: 'Ex Libris' },
+                { english: 'Faceting', swedish: 'Fasettering', danish: 'Fasettering' },
+                { english: 'Gazette', swedish: 'Officiell tidning', danish: 'Officiel tidende' },
+                { english: 'Hermeneutics', swedish: 'Hermeneutik', danish: 'Hermeneutik' },
+                { english: 'Iconography', swedish: 'Ikonografi', danish: 'Ikonografi' },
+                { english: 'Information retrieval', swedish: 'Informationssökning', danish: 'Informationssøgning' },
+                { english: 'Legal record', swedish: 'Juridisk handling', danish: 'Juridisk akt' },
+                { english: 'Literary warrant', swedish: 'Litterär grund', danish: 'Litterær hjemmel' },
+                { english: 'Metadata', swedish: 'Metadata', danish: 'Metadata' },
+                { english: 'Micrographics', swedish: 'Mikrografik', danish: 'Mikrografik' },
+                { english: 'Numeracy', swedish: 'Sifferkompetens', danish: 'Talforståelse' },
+                { english: 'Ontology', swedish: 'Ontologi', danish: 'Ontologi' },
+                { english: 'Paleography', swedish: 'Paleografi', danish: 'Palæografi' },
+                { english: 'Papyrus', swedish: 'Papyrus', danish: 'Papyrus' },
+                { english: 'Pergament', swedish: 'Pergament', danish: 'Pergament' },
+                { english: 'Photocopy', swedish: 'Fotokopia', danish: 'Fotokopi' },
+                { english: 'Post-custodial', swedish: 'Post-custodial', danish: 'Post-custodial' },
+                { english: 'Provenance', swedish: 'Proveniens', danish: 'Proveniens' },
+                { english: 'Rare materials', swedish: 'Sällsynta material', danish: 'Sjældne materialer' },
+                { english: 'Reading room', swedish: 'Läsrum', danish: 'Læsesal' },
+                { english: 'Record group', swedish: 'Arkivgrupp', danish: 'Arkivgruppe' },
+                { english: 'Reference interview', swedish: 'Referensintervju', danish: 'Referenceinterview' },
+                { english: 'Reprography', swedish: 'Reprografi', danish: 'Reprografi' },
+                { english: 'Restricted access', swedish: 'Begränsad åtkomst', danish: 'Begrænset adgang' },
+                { english: 'Scholarly communication', swedish: 'Vetenskaplig kommunikation', danish: 'Videnskabelig kommunikation' },
+                { english: 'Scriptorium', swedish: 'Skriptorium', danish: 'Skriptorium' },
+                { english: 'Semantic web', swedish: 'Semantiska webben', danish: 'Semantisk web' },
+                { english: 'Shelf list', swedish: 'Hyllista', danish: 'Hyldeliste' },
+                { english: 'Standardization', swedish: 'Standardisering', danish: 'Standardisering' },
+                { english: 'Subject analysis', swedish: 'Ämnesanalys', danish: 'Emneanalyse' },
+                { english: 'Textual criticism', swedish: 'Textkritik', danish: 'Tekstkritik' },
+                { english: 'Union catalogue', swedish: 'Samkatalog', danish: 'Fælleskatalog' },
+                { english: 'Vernacular', swedish: 'Folkspråk', danish: 'Folkesprog' },
+                { english: 'Vellum', swedish: 'Vellum', danish: 'Vellum' },
+                { english: 'Web archiving', swedish: 'Webbarkivering', danish: 'Webarkivering' },
+                { english: 'Wiki', swedish: 'Wiki', danish: 'Wiki' },
+                { english: 'Workflow', swedish: 'Arbetsflöde', danish: 'Arbejdsgang' },
+                { english: 'Xerography', swedish: 'Xerografi', danish: 'Xerografi' },
+                { english: 'Zotero', swedish: 'Zotero', danish: 'Zotero' },
+            ];
+
+            // Set the maximum number of questions for a session
+            const MAX_QUESTIONS = 20;
+
+            // Shuffle the vocabulary and set up the first question when the game starts or language mode changes
+            React.useEffect(() => {
+                if (gameStarted) {
+                    const shuffledVocab = shuffleArray([...initialVocabulary]).slice(0, MAX_QUESTIONS);
+                    setVocabulary(shuffledVocab);
+                    setCurrentQuestionIndex(0);
+                    setScore(0); // Score is reset here when starting a new game or changing language
+                    setGameEnded(false);
+                    setFeedback('');
+                    setSelectedAnswer('');
+                    setAnswerStatus(null); // Reset answer status
+                    setIsChecking(false); // Reset checking status
+                    generateQuestion(0, shuffledVocab, languageMode);
+                }
+            }, [gameStarted, languageMode]);
+
+            // Generate a new question (type and options) when currentQuestionIndex changes
+            React.useEffect(() => {
+                if (gameStarted && !gameEnded) {
+                    generateQuestion(currentQuestionIndex, vocabulary, languageMode);
+                }
+            }, [currentQuestionIndex, gameStarted, gameEnded, vocabulary, languageMode]);
+
+            // Cleanup timeout on component unmount
+            React.useEffect(() => {
+                return () => {
+                    if (feedbackTimeoutRef.current) {
+                        clearTimeout(feedbackTimeoutRef.current);
+                    }
+                };
+            }, []);
+
+            // Function to shuffle an array (Fisher-Yates algorithm)
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            };
+
+            // Generate a new question with options
+            const generateQuestion = (index, vocabList, mode) => {
+                if (vocabList.length === 0) return;
+
+                const currentWord = vocabList[index];
+                const correctAnswer = mode === 'swedish' ? currentWord.swedish : currentWord.danish;
+
+                // Get all possible answers for the chosen language
+                const allPossibleAnswers = vocabList.map(item => mode === 'swedish' ? item.swedish : item.danish);
+
+                // Filter out the correct answer to pick incorrect options
+                const incorrectAnswers = allPossibleAnswers.filter(ans => ans !== correctAnswer);
+
+                // Pick 3 random incorrect answers (or fewer if not enough available)
+                const shuffledIncorrect = shuffleArray([...incorrectAnswers]);
+                const chosenIncorrect = shuffledIncorrect.slice(0, 3);
+
+                // Combine correct and incorrect answers and shuffle them
+                const newOptions = shuffleArray([...chosenIncorrect, correctAnswer]);
+                setOptions(newOptions);
+                setSelectedAnswer('');
+                setFeedback('');
+                setAnswerStatus(null); // Reset answer status for new question
+                setIsChecking(false); // Reset checking status for new question
+            };
+
+            // Handle option selection for multiple choice - now also checks the answer
+            const handleOptionSelect = (option) => {
+                // Only allow selection and checking if answer hasn't been checked yet and not currently checking
+                if (answerStatus === null && !isChecking) {
+                    setSelectedAnswer(option); // Immediately show selection
+                    setIsChecking(true); // Indicate that we are in the checking phase
+
+                    const currentWord = vocabulary[currentQuestionIndex];
+                    const correctAnswer = languageMode === 'swedish' ? currentWord.swedish : currentWord.danish;
+
+                    if (option.toLowerCase() === correctAnswer.toLowerCase()) {
+                        setFeedback('Correct!');
+                        setAnswerStatus('correct');
+                        setScore(prevScore => prevScore + 1); // Update score
+                    } else {
+                        setFeedback(`Incorrect. The correct answer was: ${correctAnswer}`);
+                        setAnswerStatus('incorrect');
+                    }
+
+                    // Pause for 1.5 seconds to show feedback, then move to next question
+                    feedbackTimeoutRef.current = setTimeout(() => {
+                        moveToNextQuestion();
+                    }, 1500); // 1.5 second pause
+                }
+            };
+
+            // Function to move to the next question or end the game
+            const moveToNextQuestion = () => {
+                if (feedbackTimeoutRef.current) {
+                    clearTimeout(feedbackTimeoutRef.current);
+                    feedbackTimeoutRef.current = null;
+                }
+                setIsChecking(false); // Exit checking phase
+
+                if (currentQuestionIndex < vocabulary.length - 1) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                    setSelectedAnswer(''); // Clear selected answer for next question
+                    setFeedback(''); // Clear feedback for next question
+                    setAnswerStatus(null); // Reset answer status for next question
+                } else {
+                    setGameEnded(true); // End of game
+                }
+            };
+
+            // Start the game
+            const startGame = (mode) => {
+                setLanguageMode(mode);
+                setGameStarted(true);
+            };
+
+            // Reset the game
+            const resetGame = () => {
+                if (feedbackTimeoutRef.current) {
+                    clearTimeout(feedbackTimeoutRef.current);
+                }
+                setGameStarted(false);
+                setGameEnded(false);
+                setScore(0);
+                setCurrentQuestionIndex(0);
+                setSelectedAnswer('');
+                setFeedback('');
+                setOptions([]);
+                setAnswerStatus(null);
+                setIsChecking(false);
+            };
+
+            // Render the current question
+            const renderQuestion = () => {
+                if (!vocabulary.length || !vocabulary[currentQuestionIndex]) return null;
+
+                const currentWord = vocabulary[currentQuestionIndex];
+                const correctAnswer = languageMode === 'swedish' ? currentWord.swedish : currentWord.danish;
+
+                return (
+                    <div className="text-center">
+                        <p className="text-4xl font-bold text-gray-800 mb-6">
+                            Translate: <span className="text-indigo-600">{currentWord.english}</span>
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                            {options.map((option, index) => {
+                                let buttonClasses = `
+                                    p-4 border-2 rounded-xl text-2xl font-semibold transition-all duration-200
+                                    ${selectedAnswer === option && answerStatus === null ? 'bg-indigo-200 border-indigo-500 shadow-md' : 'bg-gray-100 border-gray-300 hover:bg-gray-200'}
+                                `;
+
+                                // Apply feedback styling after answer is checked
+                                if (answerStatus !== null) {
+                                    if (option.toLowerCase() === correctAnswer.toLowerCase()) {
+                                        // Correct answer is always green
+                                        buttonClasses = `${buttonClasses} bg-green-200 border-green-500`;
+                                    } else if (selectedAnswer === option) {
+                                        // Incorrect selected answer is red
+                                        buttonClasses = `${buttonClasses} bg-red-200 border-red-500`;
+                                    } else {
+                                        // Other unselected options are disabled
+                                        buttonClasses = `${buttonClasses} opacity-50 cursor-not-allowed`;
+                                    }
+                                }
+
+                                return (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleOptionSelect(option)}
+                                        className={`${buttonClasses} focus:outline-none focus:ring-4 focus:ring-indigo-300`}
+                                        disabled={gameEnded || isChecking || answerStatus !== null} // Disable buttons if already checking or answer shown
+                                    >
+                                        {option}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Feedback message with dynamic styling and key for re-render */}
+                        <p
+                            key={feedback} // Adding key to force re-render when feedback changes
+                            className={`mt-6 mb-4 text-xl font-semibold transition-all duration-300 // Added mb-4 for bottom space
+                                ${feedback.includes('Correct') ? 'text-green-600' : 'text-red-600'}
+                                ${feedback ? 'font-bold text-2xl animate-pulse' : ''}
+                                h-8 flex items-center justify-center // Added fixed height and centering
+                            `}
+                        >
+                            {feedback}
+                        </p>
+                        {/* No "Next Word" button here, as it's handled automatically */}
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4 font-inter bg-gradient-to-br from-purple-100 to-blue-200">
+                    <div className="relative bg-white p-8 md:p-12 rounded-3xl shadow-2xl w-full max-w-3xl border border-gray-200 z-10">
+                        <h1 className="text-5xl font-extrabold text-center text-gray-900 mb-10">
+                            <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600">
+                                Library & Archive Vocabulary Trainer
+                            </span>
+                        </h1>
+
+                        {!gameStarted ? (
+                            <div className="text-center">
+                                <p className="text-xl text-gray-700 mb-8">
+                                    Choose a language to start learning library and archive related vocabulary.
+                                </p>
+                                <div className="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-6">
+                                    <button
+                                        onClick={() => startGame('swedish')}
+                                        className="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-10 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300 text-2xl"
+                                    >
+                                        Learn Swedish
+                                    </button>
+                                    <button
+                                        onClick={() => startGame('danish')}
+                                        className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-10 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300 text-2xl"
+                                    >
+                                        Learn Danish
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-center mb-8">
+                                    <p className="text-xl font-semibold text-gray-700">
+                                        Language: <span className="capitalize text-indigo-600">{languageMode}</span>
+                                    </p>
+                                    <p className="text-xl font-semibold text-gray-700">
+                                        Score: <span className="text-green-600">{score}</span> / {vocabulary.length}
+                                    </p>
+                                </div>
+
+                                <div className="w-full bg-gray-200 rounded-full h-4 mb-8">
+                                    <div
+                                        className="bg-indigo-500 h-4 rounded-full transition-all duration-500 ease-out"
+                                        style={{ width: `${(currentQuestionIndex / vocabulary.length) * 100}%` }}
+                                    ></div>
+                                </div>
+
+                                {gameEnded ? (
+                                    <div className="text-center">
+                                        <p className="text-4xl font-bold text-gray-800 mb-6">
+                                            Game Over!
+                                        </p>
+                                        <p className="text-3xl text-gray-700 mb-8">
+                                            You scored <span className="text-green-600 font-extrabold">{score}</span> out of <span className="font-extrabold">{vocabulary.length}</span>!
+                                        </p>
+                                        <button
+                                            onClick={resetGame}
+                                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-300"
+                                        >
+                                            Play Again
+                                        </button>
+                                    </div>
+                                ) : (
+                                    renderQuestion()
+                                )}
+                                {gameStarted && (
+                                    <div className="mt-20 text-center">
+                                        <button
+                                            onClick={resetGame}
+                                            className="text-gray-500 hover:text-gray-700 font-semibold py-2 px-4 rounded-xl transition-colors duration-200"
+                                        >
+                                            Reset Game
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Render the App component into the root div
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
